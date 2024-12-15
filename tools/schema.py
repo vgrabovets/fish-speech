@@ -168,3 +168,8 @@ class ServeTTSRequest(BaseModel):
     class Config:
         # Allow arbitrary types for pytorch related types
         arbitrary_types_allowed = True
+
+class ServeTTSRequest2(ServeTTSRequest):
+    reference_audio: str
+    reference_text: str
+    save_path: str
