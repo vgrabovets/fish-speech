@@ -10,11 +10,14 @@ import torch
 from kui.asgi import HTTPException, HttpView, JSONResponse, StreamResponse, request
 from loguru import logger
 
+from tools.file import audio_to_bytes, read_ref_text
 from tools.schema import (
     ServeASRRequest,
     ServeASRResponse,
     ServeChatRequest,
+    ServeReferenceAudio,
     ServeTTSRequest,
+    ServeTTSRequest2,
     ServeVQGANDecodeRequest,
     ServeVQGANDecodeResponse,
     ServeVQGANEncodeRequest,
@@ -196,6 +199,53 @@ class TTSView(HttpView):
                 },
                 content_type=get_content_type(req.format),
             )
+
+class TTSView2(HttpView):
+    """
+    Perform text-to-speech on the input text.
+    """
+
+    @classmethod
+    async def post(cls):
+        # Decode the request
+        payload = await request.data()
+        req = ServeTTSRequest2(**payload)
+
+        bytes_audio = audio_to_bytes(req.reference_audio)
+        ref_text = read_ref_text(req.reference_text)
+        reference_audio = ServeReferenceAudio(audio=bytes_audio, text=ref_text)
+        req.references = [reference_audio]
+
+        # Get the model from the app
+        app_state = request.app.state
+        model_manager: ModelManager = app_state.model_manager
+        engine = model_manager.tts_inference_engine
+        sample_rate = engine.decoder_model.spec_transform.sample_rate
+
+        # Check if the text is too long
+        if app_state.max_text_length > 0 and len(req.text) > app_state.max_text_length:
+            raise HTTPException(
+                HTTPStatus.BAD_REQUEST,
+                content=f"Text is too long, max length is {app_state.max_text_length}",
+            )
+
+        # Check if streaming is enabled
+        if req.streaming and req.format != "wav":
+            raise HTTPException(
+                HTTPStatus.BAD_REQUEST,
+                content="Streaming only supports WAV format",
+            )
+
+        # Perform TTS
+        fake_audios = next(inference(req, engine))
+        sf.write(
+            req.save_path,
+            fake_audios,
+            sample_rate,
+            format=req.format,
+        )
+        return JSONResponse({'status': 'OK'})
+
 
 
 class ChatView(HttpView):

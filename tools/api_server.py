@@ -15,6 +15,7 @@ from tools.server.views import (
     ChatView,
     HealthView,
     TTSView,
+    TTSView2,
     VQGANDecodeView,
     VQGANEncodeView,
 )
@@ -29,6 +30,7 @@ class API(ExceptionHandler):
             ("/v1/vqgan/decode", VQGANDecodeView),
             ("/v1/asr", ASRView),
             ("/v1/tts", TTSView),
+            ("/v2/tts", TTSView2),
             ("/v1/chat", ChatView),
         ]
         self.routes = Routes([HttpRoute(path, view) for path, view in self.routes])
